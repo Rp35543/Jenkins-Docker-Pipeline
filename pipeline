@@ -1,0 +1,65 @@
+pipeline {
+    agent any
+
+    environment {
+        // Define environment variables
+        DOCKER_IMAGE = "your-docker-image-name"
+        DOCKER_REGISTRY = "your-docker-registry"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                // Checkout the code from the source repository
+                checkout scm
+            }
+        }
+
+        stage('Build Application') {
+            steps {
+                // Build the Java application using Maven
+                sh 'mvn clean package'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    // Build the Docker image
+                    sh "docker build -t ${DOCKER_IMAGE} ."
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    // Log in to the Docker registry
+                    withCredentials([usernamePassword(credentialsId: 'docker-credentials', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                        sh "docker login -u ${USERNAME} -p ${PASSWORD} ${DOCKER_REGISTRY}"
+                    }
+                    
+                    // Tag and push the Docker image
+                    sh "docker tag ${DOCKER_IMAGE} ${DOCKER_REGISTRY}/${DOCKER_IMAGE}"
+                    sh "docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}"
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                script {
+                    // Run the Docker container
+                    sh "docker run -d -p 8080:8080 ${DOCKER_REGISTRY}/${DOCKER_IMAGE}"
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            // Clean up the workspace
+            cleanWs()
+        }
+    }
+}
